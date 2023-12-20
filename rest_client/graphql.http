@@ -1,0 +1,17 @@
+### Query all persons with no arguments
+POST http://localhost:4000/graphql url HTTP/1.1
+content-type: application/json
+
+{
+  "query": "query  { allPersons { name } }"
+}
+
+### Query all persons with arguments
+POST http://localhost:4000/graphql url HTTP/1.1
+content-type: application/json
+
+{
+  "query": "query MyQuery($arg1: YesNo)  { allPersons(phone: $arg1) { name } }",
+  "operationName": "MyQuery",
+  "variables": { "arg1": "YES" }
+}
