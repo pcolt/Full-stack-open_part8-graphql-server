@@ -4,7 +4,7 @@ Exercise from Helsinki Univeristy's course [Open Full Stack - part 8/a](https://
 ## Installation
 
 `git clone`  
-`npm install`
+`npm install`   
 
 ##### Configure secret/environment variables
 - In the root folder create `.env` file with following keys:   

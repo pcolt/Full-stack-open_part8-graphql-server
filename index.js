@@ -100,7 +100,7 @@ const resolvers = {
       }
       return Person.find({phone: { $exists: args.phone === 'YES' }})
     },
-    findPerson: async (rooot, args) => Person.finfOne({ name: args.name }),
+    findPerson: async (rooot, args) => Person.findOne({ name: args.name }),
   },
   Person: {
     address: (root) => {
