@@ -1,17 +1,18 @@
 const { ApolloServer } = require('@apollo/server')
 const { startStandaloneServer } = require('@apollo/server/standalone')
-const { v1: uuid } = require('uuid')
+// const { v1: uuid } = require('uuid')
 const { GraphQLError } = require('graphql')
+const jwt = require('jsonwebtoken')
+
 const mongoose = require('mongoose')
 mongoose.set('strictQuery', false)
 const Person = require('./models/person')
+const User = require('./models/user')
 
 require('dotenv').config()
 
 const MONGODB_URI = process.env.MONGODB_URI
-
 console.log('connecting to', MONGODB_URI)
-
 mongoose.connect(MONGODB_URI)
   .then(() => {
     console.log('connected to MongoDB')
@@ -44,6 +45,16 @@ mongoose.connect(MONGODB_URI)
 // ]
 
 const typeDefs = `
+  type User {
+    username: String!
+    friends: [Person!]!
+    id: ID!
+  }
+
+  type Token {
+    value: String!
+  }
+
   enum YesNo {
     YES
     NO
@@ -75,10 +86,24 @@ const typeDefs = `
       street: String!
       city: String!
     ): Person
+
     editNumber(
       name: String!
       phone: String!
     ): Person
+
+    createUser(
+      username: String!
+    ): User
+
+    login(
+      username: String!
+      password: String!
+    ): Token
+
+    addAsFriend(
+      name: String!
+    ): User
   }
 `
 
@@ -127,8 +152,19 @@ const resolvers = {
     // },
     addPerson: async (root, args) => {
       const person = new Person({ ...args })
+      const currentUser = context.currentUser
+      if (!currentUser) {
+        throw new GraphQLError('Not authenticated', {
+          extensions: {
+            code: 'BAD_USER_INPUT',
+          }
+        })
+      }
+
       try {
-        return person.save()
+        await person.save()
+        currentUser.friends = currentUser.friends.concat(person)
+        await currentUser.save()
       } catch (error) {
         throw new GraphQLError('Saving person failed', {
           extensions: {
@@ -138,6 +174,8 @@ const resolvers = {
           }
         })
       }
+
+      return person
     },
     // editNumber: (root, args) => {
     //   const person = persons.find(p => p.name === args.name)
@@ -162,6 +200,59 @@ const resolvers = {
           }
         })
       }
+    },
+    createUser: async (root,args) => {
+      const user = new User({ username: args.username })
+
+      return user.save()
+        .catch(error => {
+          throw new GraphQLError(error.message, {
+            extensions: {
+              code: 'BAD_USER_INPUT',
+              invalidArgs: args.username,
+              error
+            }
+          })
+        })
+    },
+    login: async (root, args) => {
+      const user = await User.findOne({ username: args.username })
+
+      if (!user || args.password !== 'secret') {
+        throw new GraphQLError('Wrong credentials', {
+          extensions: {
+            code: 'BAD_USER_INPUT',
+          }
+        })
+      }
+
+      const userForToken = {
+        username: user.username,
+        id: user._id,
+      }
+
+      return { value: jwt.sign(userForToken, process.env.JWT_SECRET) }
+    },
+    addAsFriend: async (root, args, { currentUser }) => {
+      const nonFriendAlready = (person) => 
+        !currentUser.friends.map(f => f._id.toString()).includes(person._id.toString())
+
+      if (!currentUser) {
+        throw new GraphQLError('Not authenticated', {
+          extensions: {
+            code: 'BAD_USER_INPUT',
+          }
+        })
+      }
+
+      const person = await Person.findOne({ name: args.name })
+      if (nonFriendAlready(person)) {
+        currentUser.friends = currentUser.friends.concat(person)
+      }
+
+      await currentUser.save()
+
+      return currentUser
     }
   }
 }
@@ -173,6 +264,14 @@ const server = new ApolloServer({
 
 startStandaloneServer(server, {
   listen: { port: 4000 },
+  context: async ({ req, res }) => {
+    const auth = req ? req.headers.authorization : null
+    if (auth && auth.toLowerCase().startsWith('bearer ')) {
+      const decodedToken = jwt.verify(auth.substring(7), process.env.JWT_SECRET)
+      const currentUser = await User.findById(decodedToken.id).populate('friends')
+      return { currentUser }
+    }
+  }
 }).then(({ url }) => {
   console.log(`Server ready at ${url}`)
 })
