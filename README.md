@@ -16,3 +16,7 @@ JWT_SECRET = 'secret'
 ## Usage
 
 `npm start` serving on http://localhost:4000
+
+#### Apollo Explorer
+
+To use Apollo Expolorer open a browser Tab at http://localhost:4000

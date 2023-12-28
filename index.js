@@ -77,6 +77,7 @@ const typeDefs = `
     personCount: Int!
     allPersons(phone: YesNo): [Person!]!
     findPerson(name: String!): Person
+    me: User
   }
 
   type Mutation {
@@ -126,6 +127,9 @@ const resolvers = {
       return Person.find({phone: { $exists: args.phone === 'YES' }})
     },
     findPerson: async (rooot, args) => Person.findOne({ name: args.name }),
+    me: (root, args, context) => {
+      return context.currentUser
+    }
   },
   Person: {
     address: (root) => {
@@ -150,7 +154,7 @@ const resolvers = {
     //   persons = persons.concat(person)
     //   return person
     // },
-    addPerson: async (root, args) => {
+    addPerson: async (root, args, context) => {
       const person = new Person({ ...args })
       const currentUser = context.currentUser
       if (!currentUser) {
